@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Road To 185">
+<meta name="theme-color" content="#0b0b0f">
+<title>Road To 185</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0b0f;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
+main{max-width:760px;margin:auto;padding:calc(20px + env(safe-area-inset-top)) 18px 90px}
+h1{font-size:34px;margin:8px 0 4px}.sub{color:#a5a5ad;margin-bottom:24px}
+.card{background:#17171d;border:1px solid #282830;border-radius:20px;padding:18px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.stat{background:#111116;border-radius:15px;padding:15px}.label{font-size:13px;color:#9999a2}.value{font-size:25px;font-weight:700;margin-top:5px}
+button{width:100%;border:0;border-radius:14px;padding:15px;font-size:16px;font-weight:700;background:#fff;color:#111;margin-top:12px}
+input{width:100%;background:#111116;border:1px solid #35353e;border-radius:12px;color:white;padding:13px;font-size:17px;margin-top:7px}
+label{display:block;color:#aaa;font-size:13px;margin-top:13px}
+.bar{height:10px;background:#303039;border-radius:99px;overflow:hidden;margin-top:12px}.fill{height:100%;background:#fff;width:0}
+canvas{width:100%;height:250px;background:#111116;border-radius:15px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid #292930}.small{font-size:13px;color:#999}
+.delete{width:auto;background:#292930;color:#ddd;padding:8px 11px;margin:0;font-size:13px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#111116eF;backdrop-filter:blur(15px);padding:10px max(18px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:8px;border-top:1px solid #292930}
+nav button{width:auto;margin:0;padding:10px 16px;background:#24242b;color:#ddd}
+section{display:none}section.active{display:block}
+</style>
+</head>
+<body>
+<main>
+<section id="dashboard" class="active">
+<h1>Road To 185</h1><div class="sub">Your personal weight journey</div>
+<div class="card">
+<div class="grid">
+<div class="stat"><div class="label">Current</div><div class="value" id="current">—</div></div>
+<div class="stat"><div class="label">Goal</div><div class="value">185 lb</div></div>
+<div class="stat"><div class="label">Lost</div><div class="value" id="lost">—</div></div>
+<div class="stat"><div class="label">Remaining</div><div class="value" id="remaining">—</div></div>
+</div>
+<div class="label" style="margin-top:18px">Goal progress</div><div class="bar"><div class="fill" id="fill"></div></div>
+<div class="small" id="progressText" style="margin-top:8px">Add your first weigh-in.</div>
+<button onclick="show('log')">＋ Add weigh-in</button>
+</div>
+<div class="card"><h2>Weight trend</h2><canvas id="chart"></canvas></div>
+<div class="card"><h2>7-day average</h2><div class="value" id="avg">—</div><div class="small">Average of your most recent 7 weigh-ins</div></div>
+</section>
+
+<section id="log"><h1>Log Weight</h1><div class="sub">Keep your weigh-ins simple.</div>
+<div class="card">
+<label>Weight (lb)<input id="weight" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 239.4"></label>
+<label>Date<input id="date" type="date"></label>
+<label>Note (optional)<input id="note" type="text" placeholder="Morning weigh-in"></label>
+<button onclick="addEntry()">Save weigh-in</button>
+</div></section>
+
+<section id="history"><h1>History</h1><div class="sub">Every weigh-in, stored on this device.</div><div class="card" id="historyList"></div></section>
+
+<section id="settings"><h1>Settings</h1><div class="sub">Personalize your tracker.</div>
+<div class="card"><label>Starting weight (lb)<input id="startWeight" type="number" step="0.1"></label><button onclick="saveSettings()">Save settings</button>
+<p class="small">Your data is stored locally in this browser. Nothing is sent to a server by this app.</p></div>
+</section>
+</main>
+<nav><button onclick="show('dashboard')">Dashboard</button><button onclick="show('log')">＋ Log</button><button onclick="show('history')">History</button><button onclick="show('settings')">Settings</button></nav>
+<script>
+const KEY="roadto185_entries", SET="roadto185_settings", GOAL=185;
+let entries=JSON.parse(localStorage.getItem(KEY)||"[]");
+let settings=JSON.parse(localStorage.getItem(SET)||"{}");
+document.getElementById("date").value=new Date().toISOString().slice(0,10);
+document.getElementById("startWeight").value=settings.start||"";
+
+function save(){localStorage.setItem(KEY,JSON.stringify(entries));localStorage.setItem(SET,JSON.stringify(settings));}
+function show(id){document.querySelectorAll("section").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");if(id==="dashboard")render();if(id==="history")renderHistory();}
+function addEntry(){
+ const w=parseFloat(document.getElementById("weight").value); const d=document.getElementById("date").value;
+ if(!w||!d)return alert("Enter a weight and date.");
+ entries.push({w,d,n:document.getElementById("note").value.trim()});entries.sort((a,b)=>a.d.localeCompare(b.d));
+ if(!settings.start)settings.start=w;save();document.getElementById("weight").value="";document.getElementById("note").value="";show("dashboard");
+}
+function saveSettings(){settings.start=parseFloat(document.getElementById("startWeight").value)||null;save();render();alert("Settings saved.");}
+function render(){
+ if(!entries.length){["current","lost","remaining","avg"].forEach(id=>document.getElementById(id).textContent="—");document.getElementById("fill").style.width="0";document.getElementById("progressText").textContent="Add your first weigh-in.";draw();return}
+ const latest=entries[entries.length-1].w, start=settings.start||entries[0].w;
+ const lost=start-latest, rem=Math.max(0,latest-GOAL), pct=Math.max(0,Math.min(100,(start-latest)/(start-GOAL)*100));
+ document.getElementById("current").textContent=latest.toFixed(1)+" lb";document.getElementById("lost").textContent=lost.toFixed(1)+" lb";
+ document.getElementById("remaining").textContent=rem.toFixed(1)+" lb";document.getElementById("fill").style.width=pct+"%";
+ document.getElementById("progressText").textContent=pct.toFixed(1)+"% toward 185 lb";
+ const last7=entries.slice(-7).map(x=>x.w);document.getElementById("avg").textContent=(last7.reduce((a,b)=>a+b,0)/last7.length).toFixed(1)+" lb";draw();
+}
+function renderHistory(){
+ const box=document.getElementById("historyList");box.innerHTML="";
+ [...entries].reverse().forEach((e,ri)=>{const i=entries.length-1-ri;const row=document.createElement("div");row.className="row";
+ row.innerHTML=`<div><b>${e.w.toFixed(1)} lb</b><div class="small">${e.d}${e.n?" · "+e.n:""}</div></div><button class="delete" onclick="del(${i})">Delete</button>`;box.appendChild(row)});
+ if(!entries.length)box.innerHTML='<div class="small">No weigh-ins yet.</div>';
+}
+function del(i){if(confirm("Delete this weigh-in?")){entries.splice(i,1);save();renderHistory();render();}}
+function draw(){
+ const c=document.getElementById("chart"),r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=250*d;
+ const x=c.getContext("2d");x.scale(d,d);x.clearRect(0,0,r.width,250);
+ if(!entries.length){x.fillStyle="#777";x.font="15px sans-serif";x.fillText("Your graph will appear here.",20,125);return}
+ const vals=entries.map(e=>e.w), min=Math.min(GOAL,...vals)-3,max=Math.max(...vals)+3,W=r.width,H=250;
+ x.strokeStyle="#333";x.lineWidth=1;for(let i=0;i<5;i++){let y=20+i*(H-40)/4;x.beginPath();x.moveTo(35,y);x.lineTo(W-15,y);x.stroke();}
+ const mapY=v=>20+(max-v)/(max-min)*(H-40), mapX=i=>35+(i/(Math.max(1,vals.length-1)))*(W-50);
+ x.strokeStyle="#777";x.setLineDash([6,5]);x.beginPath();x.moveTo(35,mapY(GOAL));x.lineTo(W-15,mapY(GOAL));x.stroke();x.setLineDash([]);
+ x.strokeStyle="#fff";x.lineWidth=3;x.beginPath();vals.forEach((v,i)=>{let px=mapX(i),py=mapY(v);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();
+ x.fillStyle="#fff";vals.forEach((v,i)=>{x.beginPath();x.arc(mapX(i),mapY(v),3.5,0,Math.PI*2);x.fill()});
+ x.fillStyle="#aaa";x.font="12px sans-serif";x.fillText("185 goal",38,mapY(GOAL)-7);x.fillText(max.toFixed(0)+" lb",3,24);x.fillText(min.toFixed(0)+" lb",3,H-10);
+}
+render();window.addEventListener("resize",draw);
+</script>
+</body></html>
